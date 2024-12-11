@@ -1,0 +1,7 @@
+[package]
+name = "ratcheted-exchange"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+ksi-double-ratchet = "0.1.2"
