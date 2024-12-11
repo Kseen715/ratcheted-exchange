@@ -105,7 +105,7 @@ impl dr::CryptoProvider for SignalCryptoProvider {
 
         output_key_material.clear();
 
-        println!("ct: {:?}", ciphertext_vec);
+        // println!("ct: {:?}", ciphertext_vec);
 
         ciphertext_vec
     }
@@ -151,7 +151,7 @@ impl dr::CryptoProvider for SignalCryptoProvider {
         return match ciphr.decrypt_padded_mut::<Pkcs7>(&mut ciphertext_vec) {
             Ok(pt) => {
                 output_key_material.clear();
-                println!("pt: {:?}", pt);
+                // println!("pt: {:?}", pt);
                 Ok(pt.to_vec())
             }
             Err(e) => {
