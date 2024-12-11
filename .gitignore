@@ -2,4 +2,7 @@
 
 # Added by cargo
 
-/target
+Cargo.lock
+target/
+**/*.rs.bk
+.env
