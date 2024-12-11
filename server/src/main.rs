@@ -2,9 +2,10 @@ use std::io::{ErrorKind, Read, Write};
 use std::net::TcpListener;
 use std::sync::mpsc;
 use std::thread;
+use std::sync::mpsc::{Receiver, Sender};
 
 const LOCAL: &str = "127.0.0.1:6000";
-const MSG_SIZE: usize = 1024;
+const MSG_SIZE: usize = 64;
 
 fn sleep() {
     thread::sleep(::std::time::Duration::from_millis(100));
@@ -15,7 +16,7 @@ fn main() {
     server.set_nonblocking(true).expect("failed to initialize non-blocking");
 
     let mut clients = vec![];
-    let (tx, rx) = mpsc::channel::<String>();
+    let (tx, rx): (Sender<Vec<u8>>, Receiver<Vec<u8>>) = mpsc::channel();
     loop {
         if let Ok((mut socket, addr)) = server.accept() {
             println!("Client {} connected", addr);
@@ -28,8 +29,21 @@ fn main() {
 
                 match socket.read_exact(&mut buff) {
                     Ok(_) => {
-                        let msg = buff.into_iter().take_while(|&x| x != 0).collect::<Vec<_>>();
-                        let msg = String::from_utf8(msg).expect("Invalid utf8 message");
+                        let total_len = u32::from_le_bytes(buff[0..4].try_into().unwrap()) as usize;
+                        if total_len > MSG_SIZE {
+                            // read the rest of the message
+                            let mut rest = vec![0; total_len - MSG_SIZE];
+                            match socket.read_exact(&mut rest) {
+                                Ok(_) => {
+                                    buff.extend(rest);
+                                },
+                                Err(e) => {
+                                    println!("failed to read rest of message: {:?}", e);
+                                    break;
+                                }
+                            }
+                        }
+                        let msg = buff.clone();
 
                         println!("{}: {:?}", addr, msg);
                         tx.send(msg).expect("failed to send msg to rx");
@@ -47,8 +61,10 @@ fn main() {
 
         if let Ok(msg) = rx.try_recv() {
             clients = clients.into_iter().filter_map(|mut client| {
-                let mut buff = msg.clone().into_bytes();
-                buff.resize(MSG_SIZE, 0);
+                let mut buff = msg.clone();
+                let total_len = u32::from_le_bytes(buff[0..4].try_into().unwrap()) as usize;
+                let packet_len = std::cmp::max(total_len, MSG_SIZE);
+                buff.resize(packet_len, 0);
 
                 client.write_all(&buff).map(|_| client).ok()
             }).collect::<Vec<_>>();
