@@ -285,17 +285,12 @@ fn read_msg(our_auth_data: &str, bob_auth_data: &str, buff: &Vec<u8>, total_len:
     );
 
     let sent_to_auth_data_len = u32::from_le_bytes(
-        meta[sent_from_auth_data_len + 4..sent_from_auth_data_len + 8]
-            .to_vec()
-            .try_into()
-            .unwrap()
+        meta[sent_from_auth_data_len + 4..sent_from_auth_data_len + 8].to_vec().try_into().unwrap()
     ) as usize;
 
     let sent_to_auth_data =
         meta[
-            sent_from_auth_data_len + 8..sent_from_auth_data_len +
-                8 +
-                sent_to_auth_data_len
+            sent_from_auth_data_len + 8..sent_from_auth_data_len + 8 + sent_to_auth_data_len
         ].to_vec();
     let sent_to_auth_data = String::from_utf8(sent_to_auth_data).expect(
         "Invalid utf8 sent_to_auth_data"
@@ -316,14 +311,18 @@ fn read_msg(our_auth_data: &str, bob_auth_data: &str, buff: &Vec<u8>, total_len:
     // let msg_text_len = msg_text.len();
     // println!("msg_text_len: {:?}", msg_text_len);
 
-
     print!("\r\x1b[K"); // Clear current line
     println!("{:?}: {:?}", sent_from_auth_data, msg_text);
     print!("> "); // Reprint prompt
     io::stdout().flush().expect("Failed to flush stdout");
 }
 
-fn prepare_buff_to_send_msg(our_auth_data: &String, bob_auth_data: &String, buff: &mut Vec<u8>,  msg: &String) {
+fn prepare_buff_to_send_msg(
+    buff: &mut Vec<u8>,
+    our_auth_data: &String,
+    bob_auth_data: &String,
+    msg: &String
+) {
     let msg_text_len = msg.len();
 
     let session_auth_data = our_auth_data.clone();
@@ -403,7 +402,7 @@ fn main() {
                         let remaining = total_len - BASE_MSG_SIZE;
                         let mut remaining_buff = vec![0; remaining];
                         client.read_exact(&mut remaining_buff);
-                        
+
                         // Combine buffers
                         let mut full_buff = buff;
                         full_buff.extend(remaining_buff);
@@ -411,7 +410,7 @@ fn main() {
                     } else {
                         buff
                     };
-                    
+
                     read_msg(&our_auth_data, &bob_auth_data, &buff, total_len);
                 }
                 Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
@@ -424,7 +423,7 @@ fn main() {
             match rx.try_recv() {
                 Ok(msg) => {
                     let mut buff: Vec<u8> = vec![];
-                    prepare_buff_to_send_msg(&our_auth_data, &bob_auth_data, &mut buff, &msg);
+                    prepare_buff_to_send_msg(&mut buff, &our_auth_data, &bob_auth_data, &msg);
                     client.write_all(&buff).expect("Writing to socket failed");
                     // println!("Message sent {:?}", msg);
                     // println!("Buff sent {:?}", buff);
