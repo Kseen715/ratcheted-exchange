@@ -270,7 +270,12 @@ impl Drop for SymmetricKey {
     }
 }
 
-fn read_msg(our_auth_data: &str, bob_auth_data: &str, buff: &Vec<u8>, total_len: usize) {
+fn read_msg_from_buff(
+    buff: &Vec<u8>,
+    our_auth_data: &String,
+    bob_auth_data: &String,
+    total_len: usize
+) {
     let my_session_auth_data = our_auth_data.clone();
 
     let meta_len = u32::from_le_bytes(buff[4..8].try_into().unwrap()) as usize;
@@ -301,20 +306,10 @@ fn read_msg(our_auth_data: &str, bob_auth_data: &str, buff: &Vec<u8>, total_len:
         return;
     }
 
-    // if session_auth_data_text == my_session_auth_data {
-    //     session_auth_data_text = "-== YOU ==-".to_string();
-    // }
-
     let msg_text = buff[8 + meta_len..total_len].to_vec();
     let msg_text = String::from_utf8(msg_text).expect("Invalid utf8 message");
 
-    // let msg_text_len = msg_text.len();
-    // println!("msg_text_len: {:?}", msg_text_len);
-
-    print!("\r\x1b[K"); // Clear current line
-    println!("{:?}: {:?}", sent_from_auth_data, msg_text);
-    print!("> "); // Reprint prompt
-    io::stdout().flush().expect("Failed to flush stdout");
+    return (sent_from_auth_data, msg_text);
 }
 
 fn prepare_buff_to_send_msg(
@@ -396,6 +391,7 @@ fn main() {
             let mut buff = vec![0; BASE_MSG_SIZE];
             match client.read_exact(&mut buff) {
                 Ok(_) => {
+                    // Read full message
                     let total_len = u32::from_le_bytes(buff[0..4].try_into().unwrap()) as usize;
                     buff = if total_len > BASE_MSG_SIZE {
                         // Read remaining data
@@ -411,7 +407,17 @@ fn main() {
                         buff
                     };
 
-                    read_msg(&our_auth_data, &bob_auth_data, &buff, total_len);
+                    let (sent_from_auth_data, msg_text) = read_msg_from_buff(
+                        &buff,
+                        &our_auth_data,
+                        &bob_auth_data,
+                        total_len
+                    );
+
+                    print!("\r\x1b[K"); // Clear current line
+                    println!("{:?}: {:?}", sent_from_auth_data, msg_text);
+                    print!("> "); // Reprint prompt
+                    io::stdout().flush().expect("Failed to flush stdout");
                 }
                 Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                 Err(_) => {
