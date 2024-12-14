@@ -304,6 +304,7 @@ fn read_msg_from_buff(
 
     if sent_to_auth_data != our_auth_data.clone() || sent_from_auth_data != bob_auth_data.clone() {
         // drop the message if it's not from the person we're talking to
+        // or if it's from ourselves
         return (String::from(""), String::from(""));
     }
 
@@ -356,7 +357,6 @@ fn prepare_buff_to_send_msg(
 }
 
 // MSG arch:
-// - 1024u8:
 //      - 4u8: total_len
 //      - 4u8: meta_len
 //          - 4u8: session_auth_data_len
@@ -365,6 +365,7 @@ fn prepare_buff_to_send_msg(
 //              - bobs_auth_data
 //      - msg
 fn main() {
+    let mut rng = OsRng::new().unwrap();
     let shared_key: SymmetricKey = SymmetricKey(
         GenericArray::<u8, U32>::clone_from_slice(b"Output of a X3DH key exchange...")
     );
@@ -384,11 +385,30 @@ fn main() {
         input.trim().to_string()
     }
 
+    let mut session_created: bool = false;
+    let mut is_alice: bool = false;
+    let mut alice: SignalDR;
+    let mut bob: SignalDR;
+
     let our_auth_data: String = read_input("Input your auth data: ");
     let bob_auth_data: String = read_input("Input bob's auth data: ");
 
+    // Copy some values (these are usually the outcome of an X3DH key exchange)
+    let bobs_prekey = KeyPair::new(&mut rng);
+    let bobs_public_prekey = bobs_prekey.public().clone();
+    let shared = SymmetricKey(
+        GenericArray::<u8, U32>::clone_from_slice(b"Output of a X3DH key exchange...")
+    );
+
     let mut buff: Vec<u8> = vec![];
-    prepare_buff_to_send_msg(&mut buff, &our_auth_data, &bob_auth_data, &String::from("sending init key to Alice"));
+    // send hex encoded public key
+    prepare_buff_to_send_msg(
+        &mut buff,
+        &our_auth_data,
+        &bob_auth_data,
+        &base64::encode(bobs_public_prekey.0.as_bytes())
+    );
+    // prepare_buff_to_send_msg(&mut buff, &our_auth_data, &bob_auth_data, &String::from("sending init key to Alice......."));
     client.write_all(&buff).expect("Writing to socket failed");
 
     thread::spawn(move || {
@@ -422,10 +442,29 @@ fn main() {
                     if sent_from_auth_data == "" || msg_text == "" {
                         continue;
                     }
-                    print!("\r\x1b[K"); // Clear current line
-                    println!("{:?}: {:?}", sent_from_auth_data, msg_text);
-                    print!("> "); // Reprint prompt
-                    io::stdout().flush().expect("Failed to flush stdout");
+
+                    if !session_created {
+                        let mut bob_public_key = msg_text.clone();
+
+                        // Alice fetches Bob's prekey bundle and completes her side of the X3DH handshake
+                        // alice = SignalDR::new_alice(&shared, bob_public_key, None, &mut rng);
+
+                        print!("\r\x1b[K"); // Clear current line
+                        println!(
+                            "{:?}: {:?} {:?}",
+                            sent_from_auth_data,
+                            "[🤙] Session created, I am <Alice>",
+                            msg_text
+                        );
+                        print!("> "); // Reprint prompt
+                        io::stdout().flush().expect("Failed to flush stdout");
+                        session_created = true;
+                    } else {
+                        print!("\r\x1b[K"); // Clear current line
+                        println!("{:?}: {:?}", sent_from_auth_data, msg_text);
+                        print!("> "); // Reprint prompt
+                        io::stdout().flush().expect("Failed to flush stdout");
+                    }
                 }
                 Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                 Err(_) => {
