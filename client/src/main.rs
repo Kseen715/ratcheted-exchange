@@ -387,9 +387,15 @@ fn main() {
     let our_auth_data: String = read_input("Input your auth data: ");
     let bob_auth_data: String = read_input("Input bob's auth data: ");
 
+    let mut buff: Vec<u8> = vec![];
+    prepare_buff_to_send_msg(&mut buff, &our_auth_data, &bob_auth_data, &String::from("sending init key to Alice"));
+    client.write_all(&buff).expect("Writing to socket failed");
+
     thread::spawn(move || {
         loop {
             let mut buff = vec![0; BASE_MSG_SIZE];
+
+            // Read message
             match client.read_exact(&mut buff) {
                 Ok(_) => {
                     // Read full message
@@ -428,6 +434,7 @@ fn main() {
                 }
             }
 
+            // Send message
             match rx.try_recv() {
                 Ok(msg) => {
                     let mut buff: Vec<u8> = vec![];
