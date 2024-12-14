@@ -273,9 +273,10 @@ impl Drop for SymmetricKey {
 fn read_msg_from_buff(
     buff: &Vec<u8>,
     our_auth_data: &String,
-    bob_auth_data: &String,
-    total_len: usize
-) {
+    bob_auth_data: &String
+) -> (String, String) {
+    let total_len = u32::from_le_bytes(buff[0..4].try_into().unwrap()) as usize;
+
     let my_session_auth_data = our_auth_data.clone();
 
     let meta_len = u32::from_le_bytes(buff[4..8].try_into().unwrap()) as usize;
@@ -301,9 +302,9 @@ fn read_msg_from_buff(
         "Invalid utf8 sent_to_auth_data"
     );
 
-    if sent_to_auth_data != our_auth_data || sent_from_auth_data != bob_auth_data {
+    if sent_to_auth_data != our_auth_data.clone() || sent_from_auth_data != bob_auth_data.clone() {
         // drop the message if it's not from the person we're talking to
-        return;
+        return (String::from(""), String::from(""));
     }
 
     let msg_text = buff[8 + meta_len..total_len].to_vec();
@@ -410,10 +411,11 @@ fn main() {
                     let (sent_from_auth_data, msg_text) = read_msg_from_buff(
                         &buff,
                         &our_auth_data,
-                        &bob_auth_data,
-                        total_len
+                        &bob_auth_data
                     );
-
+                    if sent_from_auth_data == "" || msg_text == "" {
+                        continue;
+                    }
                     print!("\r\x1b[K"); // Clear current line
                     println!("{:?}: {:?}", sent_from_auth_data, msg_text);
                     print!("> "); // Reprint prompt
