@@ -270,6 +270,21 @@ impl Drop for SymmetricKey {
     }
 }
 
+impl Clone for SymmetricKey {
+    fn clone(&self) -> SymmetricKey {
+        SymmetricKey(self.0.clone())
+    }
+}
+
+impl Clone for KeyPair {
+    fn clone(&self) -> KeyPair {
+        KeyPair {
+            private: self.private.clone(),
+            public: self.public.clone(),
+        }
+    }
+}
+
 fn read_msg_from_buff(
     buff: &Vec<u8>,
     our_auth_data: &String,
@@ -387,8 +402,8 @@ fn main() {
 
     let mut session_created: bool = false;
     let mut is_alice: bool = false;
-    let mut alice: SignalDR;
-    let mut bob: SignalDR;
+    let mut alice: SignalDR = SignalDR::new_alice(&shared_key, PublicKey(x25519_dalek::PublicKey::from([0; 32])), None, &mut rng);
+    let mut bob: SignalDR = SignalDR::new_bob(shared_key, KeyPair::new(&mut rng), None);
 
     let our_auth_data: String = read_input("Input your auth data: ");
     let bob_auth_data: String = read_input("Input bob's auth data: ");
@@ -444,20 +459,53 @@ fn main() {
                     }
 
                     if !session_created {
-                        let mut bob_public_key = msg_text.clone();
+                        // if string msg_text starts with [⚙️], then we are Bob and session is created
+                        if msg_text.starts_with("[⚙️]") {
+                            bob = SignalDR::new_bob(shared.clone(), bobs_prekey.clone(), None);
+                            is_alice = false;
+
+                            session_created = true;
+                            print!("\r\x1b[K"); // Clear current line
+                            println!(
+                                "{:?}: {:?} {:?}",
+                                sent_from_auth_data,
+                                "[🤙] Session created, I am <Bob> now",
+                                msg_text
+                            );
+                            print!("> "); // Reprint prompt
+                            io::stdout().flush().expect("Failed to flush stdout");
+
+                            continue;
+                        }
+                        let bob_public_key_bytes = base64::decode(&msg_text).unwrap();
+                        let mut bob_public_key = PublicKey(
+                            x25519_dalek::PublicKey::from(<[u8; 32]>::try_from(bob_public_key_bytes.as_slice()).unwrap())
+                        );
 
                         // Alice fetches Bob's prekey bundle and completes her side of the X3DH handshake
-                        // alice = SignalDR::new_alice(&shared, bob_public_key, None, &mut rng);
-
+                        alice = SignalDR::new_alice(&shared.clone(), bob_public_key, None, &mut rng);
+                        is_alice = true;
+                        
                         print!("\r\x1b[K"); // Clear current line
                         println!(
                             "{:?}: {:?} {:?}",
                             sent_from_auth_data,
-                            "[🤙] Session created, I am <Alice>",
+                            "[🤙] Session created, I am <Alice> now",
                             msg_text
                         );
                         print!("> "); // Reprint prompt
                         io::stdout().flush().expect("Failed to flush stdout");
+                        
+                        // send msg to bob with alice's public key
+                        let mut buff: Vec<u8> = vec![];
+                        prepare_buff_to_send_msg(
+                            &mut buff,
+                            &our_auth_data,
+                            &bob_auth_data,
+                            &String::from("[⚙️]")
+                        );
+                        client.write_all(&buff).expect("Writing to socket failed");
+
                         session_created = true;
                     } else {
                         print!("\r\x1b[K"); // Clear current line
