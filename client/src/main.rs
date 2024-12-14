@@ -270,6 +270,96 @@ impl Drop for SymmetricKey {
     }
 }
 
+fn read_msg(our_auth_data: &str, bob_auth_data: &str, buff: &Vec<u8>, total_len: usize) {
+    let my_session_auth_data = our_auth_data.clone();
+
+    let meta_len = u32::from_le_bytes(buff[4..8].try_into().unwrap()) as usize;
+    let meta = &buff[8..8 + meta_len];
+
+    let sent_from_auth_data_len = u32::from_le_bytes(
+        meta[0..4].to_vec().try_into().unwrap()
+    ) as usize;
+    let sent_from_auth_data = meta[4..sent_from_auth_data_len + 4].to_vec();
+    let sent_from_auth_data = String::from_utf8(sent_from_auth_data).expect(
+        "Invalid utf8 sent_from_auth_data"
+    );
+
+    let sent_to_auth_data_len = u32::from_le_bytes(
+        meta[sent_from_auth_data_len + 4..sent_from_auth_data_len + 8]
+            .to_vec()
+            .try_into()
+            .unwrap()
+    ) as usize;
+
+    let sent_to_auth_data =
+        meta[
+            sent_from_auth_data_len + 8..sent_from_auth_data_len +
+                8 +
+                sent_to_auth_data_len
+        ].to_vec();
+    let sent_to_auth_data = String::from_utf8(sent_to_auth_data).expect(
+        "Invalid utf8 sent_to_auth_data"
+    );
+
+    if sent_to_auth_data != our_auth_data || sent_from_auth_data != bob_auth_data {
+        // drop the message if it's not from the person we're talking to
+        return;
+    }
+
+    // if session_auth_data_text == my_session_auth_data {
+    //     session_auth_data_text = "-== YOU ==-".to_string();
+    // }
+
+    let msg_text = buff[8 + meta_len..total_len].to_vec();
+    let msg_text = String::from_utf8(msg_text).expect("Invalid utf8 message");
+
+    // let msg_text_len = msg_text.len();
+    // println!("msg_text_len: {:?}", msg_text_len);
+
+
+    print!("\r\x1b[K"); // Clear current line
+    println!("{:?}: {:?}", sent_from_auth_data, msg_text);
+    print!("> "); // Reprint prompt
+    io::stdout().flush().expect("Failed to flush stdout");
+}
+
+fn prepare_buff_to_send_msg(our_auth_data: &String, bob_auth_data: &String, buff: &mut Vec<u8>,  msg: &String) {
+    let msg_text_len = msg.len();
+
+    let session_auth_data = our_auth_data.clone();
+    let session_auth_data_len: u32 = session_auth_data.len() as u32;
+
+    let bobs_auth_data = bob_auth_data.clone();
+    let bobs_auth_data_len: u32 = bobs_auth_data.len() as u32;
+
+    let meta_len: u32 =
+        4 + // session_auth_data_len
+        session_auth_data_len +
+        4 + // bobs_auth_data_len
+        bobs_auth_data_len;
+
+    let total_len: u32 =
+        4 + // total_len
+        4 + // meta_len
+        meta_len +
+        (msg_text_len as u32);
+
+    buff.extend_from_slice(&total_len.to_le_bytes());
+    buff.extend_from_slice(&meta_len.to_le_bytes());
+
+    // meta:
+    buff.extend_from_slice(&session_auth_data_len.to_le_bytes());
+    buff.append(&mut session_auth_data.clone().into_bytes());
+    buff.extend_from_slice(&bobs_auth_data_len.to_le_bytes());
+    buff.append(&mut bobs_auth_data.clone().into_bytes());
+
+    // msg_text:
+    buff.append(&mut msg.clone().into_bytes());
+
+    let packet_len = std::cmp::max(BASE_MSG_SIZE, buff.len());
+    buff.resize(packet_len, 0);
+}
+
 // MSG arch:
 // - 1024u8:
 //      - 4u8: total_len
@@ -299,29 +389,21 @@ fn main() {
         input.trim().to_string()
     }
 
-    let our_auth_data = read_input("Input your auth data: ");
-    let bob_auth_data = read_input("Input bob's auth data: ");
+    let our_auth_data: String = read_input("Input your auth data: ");
+    let bob_auth_data: String = read_input("Input bob's auth data: ");
 
     thread::spawn(move || {
         loop {
             let mut buff = vec![0; BASE_MSG_SIZE];
             match client.read_exact(&mut buff) {
                 Ok(_) => {
-                    // let my_session_auth_data = format!(
-                    //     "{}:{}",
-                    //     client.local_addr().unwrap().ip().to_string(),
-                    //     client.local_addr().unwrap().port().to_string()
-                    // );
-                    let my_session_auth_data = our_auth_data.clone();
-
                     let total_len = u32::from_le_bytes(buff[0..4].try_into().unwrap()) as usize;
-
                     buff = if total_len > BASE_MSG_SIZE {
                         // Read remaining data
                         let remaining = total_len - BASE_MSG_SIZE;
                         let mut remaining_buff = vec![0; remaining];
                         client.read_exact(&mut remaining_buff);
-
+                        
                         // Combine buffers
                         let mut full_buff = buff;
                         full_buff.extend(remaining_buff);
@@ -329,59 +411,8 @@ fn main() {
                     } else {
                         buff
                     };
-
-                    let meta_len = u32::from_le_bytes(buff[4..8].try_into().unwrap()) as usize;
-                    let meta = &buff[8..8 + meta_len];
-
-                    // println!("buf: {:?}", buff);
-                    // println!("total_len: {:?}", total_len);
-                    // println!("meta_len: {:?}", meta_len);
-
-                    let sent_from_auth_data_len = u32::from_le_bytes(
-                        meta[0..4].to_vec().try_into().unwrap()
-                    ) as usize;
-                    let sent_from_auth_data = meta[4..sent_from_auth_data_len + 4].to_vec();
-                    let sent_from_auth_data = String::from_utf8(sent_from_auth_data).expect(
-                        "Invalid utf8 sent_from_auth_data"
-                    );
-
-                    let sent_to_auth_data_len = u32::from_le_bytes(
-                        meta[sent_from_auth_data_len + 4..sent_from_auth_data_len + 8]
-                            .to_vec()
-                            .try_into()
-                            .unwrap()
-                    ) as usize;
-                    // println!("sent_to_auth_data_len: {:?}", sent_to_auth_data_len);
-                    let sent_to_auth_data =
-                        meta[
-                            sent_from_auth_data_len + 8..sent_from_auth_data_len +
-                                8 +
-                                sent_to_auth_data_len
-                        ].to_vec();
-                    let sent_to_auth_data = String::from_utf8(sent_to_auth_data).expect(
-                        "Invalid utf8 sent_to_auth_data"
-                    );
-
-                    if sent_to_auth_data != our_auth_data || sent_from_auth_data != bob_auth_data {
-                        // drop the message if it's not from the person we're talking to
-                        continue;
-                    }
-
-                    // if session_auth_data_text == my_session_auth_data {
-                    //     session_auth_data_text = "-== YOU ==-".to_string();
-                    // }
-
-                    let msg_text = buff[8 + meta_len..total_len].to_vec();
-                    let msg_text = String::from_utf8(msg_text).expect("Invalid utf8 message");
-
-                    // let msg_text_len = msg_text.len();
-                    // println!("msg_text_len: {:?}", msg_text_len);
-
-
-                    print!("\r\x1b[K"); // Clear current line
-                    println!("{:?}: {:?}", sent_from_auth_data, msg_text);
-                    print!("> "); // Reprint prompt
-                    io::stdout().flush().expect("Failed to flush stdout");
+                    
+                    read_msg(&our_auth_data, &bob_auth_data, &buff, total_len);
                 }
                 Err(ref err) if err.kind() == ErrorKind::WouldBlock => (),
                 Err(_) => {
@@ -393,46 +424,7 @@ fn main() {
             match rx.try_recv() {
                 Ok(msg) => {
                     let mut buff: Vec<u8> = vec![];
-                    let msg_text_len = msg.len();
-
-                    // let session_auth_data = format!(
-                    //     "{}:{}",
-                    //     client.local_addr().unwrap().ip().to_string(),
-                    //     client.local_addr().unwrap().port().to_string()
-                    // );
-                    let session_auth_data = our_auth_data.clone();
-                    let session_auth_data_len: u32 = session_auth_data.len() as u32;
-                    // println!("session_auth_data: {:?}", session_auth_data);
-
-                    let bobs_auth_data = bob_auth_data.clone();
-                    let bobs_auth_data_len: u32 = bobs_auth_data.len() as u32;
-
-                    let meta_len: u32 =
-                        4 + // session_auth_data_len
-                        session_auth_data_len +
-                        4 + // bobs_auth_data_len
-                        bobs_auth_data_len;
-
-                    let total_len: u32 =
-                        4 + // total_len
-                        4 + // meta_len
-                        meta_len +
-                        (msg_text_len as u32);
-
-                    buff.extend_from_slice(&total_len.to_le_bytes());
-                    buff.extend_from_slice(&meta_len.to_le_bytes());
-
-                    // meta:
-                    buff.extend_from_slice(&session_auth_data_len.to_le_bytes());
-                    buff.append(&mut session_auth_data.clone().into_bytes());
-                    buff.extend_from_slice(&bobs_auth_data_len.to_le_bytes());
-                    buff.append(&mut bobs_auth_data.clone().into_bytes());
-
-                    // msg_text:
-                    buff.append(&mut msg.clone().into_bytes());
-
-                    let packet_len = std::cmp::max(BASE_MSG_SIZE, buff.len());
-                    buff.resize(packet_len, 0);
+                    prepare_buff_to_send_msg(&our_auth_data, &bob_auth_data, &mut buff, &msg);
                     client.write_all(&buff).expect("Writing to socket failed");
                     // println!("Message sent {:?}", msg);
                     // println!("Buff sent {:?}", buff);
