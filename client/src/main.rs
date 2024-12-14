@@ -401,7 +401,14 @@ fn main() {
     }
 
     let mut session_created: bool = false;
-    let mut is_alice: bool = false;
+
+    enum UserKind {
+        Undefined,
+        Alice,
+        Bob,
+    }
+    let mut user_kind: UserKind = UserKind::Undefined;
+
     let mut alice: SignalDR = SignalDR::new_alice(&shared_key, PublicKey(x25519_dalek::PublicKey::from([0; 32])), None, &mut rng);
     let mut bob: SignalDR = SignalDR::new_bob(shared_key, KeyPair::new(&mut rng), None);
 
@@ -462,9 +469,8 @@ fn main() {
                         // if string msg_text starts with [⚙️], then we are Bob and session is created
                         if msg_text.starts_with("[⚙️]") {
                             bob = SignalDR::new_bob(shared.clone(), bobs_prekey.clone(), None);
-                            is_alice = false;
-
-                            session_created = true;
+                            user_kind = UserKind::Bob;
+                            
                             print!("\r\x1b[K"); // Clear current line
                             println!(
                                 "{:?}: {:?} {:?}",
@@ -474,7 +480,8 @@ fn main() {
                             );
                             print!("> "); // Reprint prompt
                             io::stdout().flush().expect("Failed to flush stdout");
-
+                            
+                            session_created = true;
                             continue;
                         }
                         let bob_public_key_bytes = base64::decode(&msg_text).unwrap();
@@ -484,7 +491,7 @@ fn main() {
 
                         // Alice fetches Bob's prekey bundle and completes her side of the X3DH handshake
                         alice = SignalDR::new_alice(&shared.clone(), bob_public_key, None, &mut rng);
-                        is_alice = true;
+                        user_kind = UserKind::Alice;
                         
                         print!("\r\x1b[K"); // Clear current line
                         println!(
