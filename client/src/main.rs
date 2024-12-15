@@ -633,7 +633,9 @@ fn main() {
                             user_kind = UserKind::Bob;
 
                             println!("____tying to decrypt header____");
-                            let _ = bob.ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes()).unwrap();
+                            let _ = bob
+                                .ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes())
+                                .unwrap();
                             println!("____header decrypted____");
 
                             print!("\r\x1b[K"); // Clear current line
@@ -647,7 +649,7 @@ fn main() {
                             io::stdout().flush().expect("Failed to flush stdout");
 
                             // send msg to alice with bob's public key
-                            
+
                             session_created = true;
                             println!("[dbg] session_created: {:?}", session_created);
                             continue;
@@ -659,8 +661,6 @@ fn main() {
                             )
                         );
                         println!("[654] data: {:?}", bob_public_key_bytes); // correct
-
-
 
                         // Alice fetches Bob's prekey bundle and completes her side of the X3DH handshake
                         alice = SignalDR::new_alice(
@@ -707,7 +707,6 @@ fn main() {
                         );
                         client.write_all(&buff).expect("Writing to socket failed");
 
-
                         // prepare_buff_to_send_msg(
                         //     &mut buff,
                         //     &BASE64_STANDARD.encode(&our_auth_data),
@@ -737,8 +736,8 @@ fn main() {
                         } else if user_kind == UserKind::Bob {
                             println!("[dbg] Begin decrypting message B =====================");
                             let decrypted = bob
-                            .ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes())
-                            .unwrap();
+                                .ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes())
+                                .unwrap();
                             print!("\r\x1b[K"); // Clear current line
                             println!(
                                 "{:?}: {:?}",
