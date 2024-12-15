@@ -80,13 +80,15 @@ fn main() {
                                 .unwrap()
                                 .as_secs() as i64;
                             let datetime = DateTime::<Utc>::from_timestamp(timestamp, 0).unwrap();
+                            let full_msg_hex = buff.iter().map(|b| format!("{:02X}", b)).collect::<String>()[..total_len * 2].to_string();
                             println!(
-                                "{}: {}.{:03}.{:06} UTC transmitted {} bytes",
+                                "{}: {}.{:03}.{:06} UTC transmitted {} bytes: {}",
                                 addr,
                                 datetime.format("%Y-%m-%d %H:%M:%S"),
                                 ms,
                                 ns,
-                                total_len
+                                total_len,
+                                full_msg_hex
                             );
                             tx.send(msg.data).expect("failed to send msg to rx");
                         }
