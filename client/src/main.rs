@@ -516,7 +516,7 @@ fn main() {
     let mut bob: SignalDR = SignalDR::new_bob(shared_key, KeyPair::new(&mut rng), None);
 
     let our_auth_data: String = read_input("Input your auth data: ");
-    let bob_auth_data: String = read_input("Input bob's auth data: ");
+    let bob_auth_data: String = read_input("Input other's auth data: ");
 
     // Copy some values (these are usually the outcome of an X3DH key exchange)
     let bobs_prekey = KeyPair::new(&mut rng);
@@ -776,7 +776,10 @@ fn main() {
                         // println!("[dbg] End encrypting message B =====================");
                     } else {
                         // println!("NOT ALICE NOR BOB ====================");
+                        print!("\r\x1b[K"); // Clear current line
                         println!("[ERROR] SESSION IS NOT ESTABLISHED");
+                        print!("> "); // Reprint prompt
+                        io::stdout().flush().expect("Failed to flush stdout");
                         prepare_buff_to_send_msg(
                             &mut buff,
                             &BASE64_STANDARD.encode(&our_auth_data),
