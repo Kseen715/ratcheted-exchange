@@ -488,23 +488,6 @@ fn main() {
         }
     }
 
-    // fn bytes_to_type<T>(bytes: &[u8]) -> Option<T> where T: Sized {
-    //     if bytes.len() != std::mem::size_of::<T>() {
-    //         return None;
-    //     }
-
-    //     let mut value = std::mem::MaybeUninit::uninit();
-
-    //     unsafe {
-    //         std::ptr::copy_nonoverlapping(
-    //             bytes.as_ptr(),
-    //             value.as_mut_ptr() as *mut u8,
-    //             std::mem::size_of::<T>()
-    //         );
-    //         Some(value.assume_init())
-    //     }
-    // }
-
     fn bytes_to_type<T>(bytes: &[u8]) -> Header<PublicKey> {
         let mut value = std::mem::MaybeUninit::uninit();
         // println!("bytes: {:?}", bytes);
@@ -543,11 +526,7 @@ fn main() {
     );
 
     let mut buff: Vec<u8> = vec![];
-    println!("[511] bobs_public_prekey: {:?}", bobs_public_prekey.0.as_bytes());
-    println!(
-        "[511] bobs_public_prekey b64: {:?}",
-        BASE64_STANDARD.encode(&bobs_public_prekey.0.as_bytes())
-    );
+
     // send hex encoded public key
     prepare_buff_to_send_msg(
         &mut buff,
@@ -565,7 +544,7 @@ fn main() {
             // Read message
             match client.read_exact(&mut buff) {
                 Ok(_) => {
-                    println!("Message received ===============================");
+                    // println!("Message received ===============================");
                     // Read full message
                     let total_len = u32::from_le_bytes(buff[0..4].try_into().unwrap()) as usize;
                     buff = if total_len > BASE_MSG_SIZE {
@@ -587,9 +566,6 @@ fn main() {
                         &BASE64_STANDARD.encode(&our_auth_data),
                         &BASE64_STANDARD.encode(&bob_auth_data)
                     );
-                    println!("[dbg] sent_from_auth_data b64: {:?}", sent_from_auth_data_b64);
-                    println!("header b64: {:?}", header_b64);
-                    // println!("msg_text551 {:?}", msg_text);
 
                     let sent_from_auth_data = BASE64_STANDARD.decode(
                         &sent_from_auth_data_b64
@@ -606,21 +582,9 @@ fn main() {
                         header = bytes_to_type::<Header<PublicKey>>(header_bytes);
                     } else {
                     }
-                    println!(
-                        "[593 Alice's msg]: {:?}",
-                        BASE64_STANDARD.encode("[🤙] Session created, I am <Alice> now")
-                    );
-                    println!(
-                        "[597] Bob's msg: {:?}",
-                        BASE64_STANDARD.encode("[🤙] Session created, I am <Bob> now")
-                    );
 
-                    println!("[577] msg_text: {:?}", data_b64);
                     let data = BASE64_STANDARD.decode(&data_b64).unwrap();
 
-                    println!("[dbg] sent_from_auth_data: {:?}", sent_from_auth_data);
-                    println!("[dbg] msg_text: {:?}", data);
-                    println!("[dbg] header: {:?}", header);
                     if sent_from_auth_data == "".as_bytes() || data == "".as_bytes() {
                         continue;
                     }
@@ -632,18 +596,15 @@ fn main() {
                             bob = SignalDR::new_bob(shared.clone(), bobs_prekey.clone(), None);
                             user_kind = UserKind::Bob;
 
-                            println!("____tying to decrypt header____");
                             let _ = bob
                                 .ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes())
                                 .unwrap();
-                            println!("____header decrypted____");
 
                             print!("\r\x1b[K"); // Clear current line
                             println!(
-                                "{:?}: {:?} {:?}",
+                                "{:?}: {:?}",
                                 String::from_utf8(sent_from_auth_data).unwrap(),
-                                "[🤙] Session created, I am <Alice> now",
-                                data_b64
+                                "[🤙] Session created, I am <Alice> now"
                             );
                             print!("> "); // Reprint prompt
                             io::stdout().flush().expect("Failed to flush stdout");
@@ -651,7 +612,6 @@ fn main() {
                             // send msg to alice with bob's public key
 
                             session_created = true;
-                            println!("[dbg] session_created: {:?}", session_created);
                             continue;
                         }
                         let bob_public_key_bytes = &data.clone();
@@ -660,7 +620,6 @@ fn main() {
                                 <[u8; 32]>::try_from(bob_public_key_bytes.as_slice()).unwrap()
                             )
                         );
-                        println!("[654] data: {:?}", bob_public_key_bytes); // correct
 
                         // Alice fetches Bob's prekey bundle and completes her side of the X3DH handshake
                         alice = SignalDR::new_alice(
@@ -673,10 +632,9 @@ fn main() {
 
                         print!("\r\x1b[K"); // Clear current line
                         println!(
-                            "{:?}: {:?} {:?}",
+                            "{:?}: {:?}",
                             String::from_utf8(sent_from_auth_data).unwrap(),
-                            "[🤙] Session created, I am <Bob> now",
-                            data_b64
+                            "[🤙] Session created, I am <Bob> now"
                         );
                         print!("> "); // Reprint prompt
                         io::stdout().flush().expect("Failed to flush stdout");
@@ -696,7 +654,7 @@ fn main() {
                                 std::mem::size_of_val(&h)
                             )
                         };
-                        println!("hALICE len: {:?}", h_u8.len());
+                        // println!("hALICE len: {:?}", h_u8.len());
                         let mut buff: Vec<u8> = vec![];
                         prepare_buff_to_send_msg(
                             &mut buff,
@@ -716,37 +674,37 @@ fn main() {
                         // );
 
                         session_created = true;
-                        println!("[dbg] session_created: {:?}", session_created);
+                        // println!("[dbg] session_created: {:?}", session_created);
                     } else {
-                        println!("[dbg] user_kind: {:?}", user_kind);
+                        // println!("[dbg] user_kind: {:?}", user_kind);
                         if user_kind == UserKind::Alice {
-                            println!("[dbg] Begin decrypting message A =====================");
+                            // println!("[dbg] Begin decrypting message A =====================");
                             let decrypted = alice
                                 .ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes())
                                 .unwrap();
                             print!("\r\x1b[K"); // Clear current line
                             println!(
                                 "{:?}: {:?}",
-                                sent_from_auth_data,
+                                String::from_utf8(sent_from_auth_data).unwrap(),
                                 String::from_utf8(decrypted).unwrap()
                             );
                             print!("> "); // Reprint prompt
                             io::stdout().flush().expect("Failed to flush stdout");
-                            println!("[dbg] End decrypting message A =====================");
+                            // println!("[dbg] End decrypting message A =====================");
                         } else if user_kind == UserKind::Bob {
-                            println!("[dbg] Begin decrypting message B =====================");
+                            // println!("[dbg] Begin decrypting message B =====================");
                             let decrypted = bob
                                 .ratchet_decrypt(&header, &data, &bob_auth_data.as_bytes())
                                 .unwrap();
                             print!("\r\x1b[K"); // Clear current line
                             println!(
                                 "{:?}: {:?}",
-                                sent_from_auth_data,
+                                String::from_utf8(sent_from_auth_data).unwrap(),
                                 String::from_utf8(decrypted).unwrap()
                             );
                             print!("> "); // Reprint prompt
                             io::stdout().flush().expect("Failed to flush stdout");
-                            println!("[dbg] End decrypting message B =====================");
+                            // println!("[dbg] End decrypting message B =====================");
                         } else {
                             println!("NOT ALICE NOR BOB ====================");
                             print!("\r\x1b[K"); // Clear current line
@@ -767,10 +725,10 @@ fn main() {
             match rx.try_recv() {
                 Ok(msg) => {
                     let mut buff: Vec<u8> = vec![];
-                    println!("[dbg] user_kind: {:?}", user_kind);
+                    // println!("[dbg] user_kind: {:?}", user_kind);
                     if user_kind == UserKind::Alice {
                         // encrypt message
-                        println!("[dbg] Begin encrypting message A =====================");
+                        // println!("[dbg] Begin encrypting message A =====================");
                         let (h, ct) = alice.ratchet_encrypt(
                             &msg.as_bytes(),
                             &our_auth_data.as_bytes(),
@@ -782,7 +740,7 @@ fn main() {
                                 std::mem::size_of_val(&h)
                             )
                         };
-                        println!("hALICE len: {:?}", h_u8.len());
+                        // println!("hALICE len: {:?}", h_u8.len());
                         prepare_buff_to_send_msg(
                             &mut buff,
                             &BASE64_STANDARD.encode(&our_auth_data),
@@ -791,10 +749,10 @@ fn main() {
                             &BASE64_STANDARD.encode(&ct)
                         );
                         client.write_all(&buff).expect("Writing to socket failed");
-                        println!("[dbg] End encrypting message A =====================");
+                        // println!("[dbg] End encrypting message A =====================");
                     } else if user_kind == UserKind::Bob {
                         // encrypt message
-                        println!("[dbg] Begin encrypting message B =====================");
+                        // println!("[dbg] Begin encrypting message B =====================");
                         let (h, ct) = bob.ratchet_encrypt(
                             &msg.as_bytes(),
                             &our_auth_data.as_bytes(),
@@ -806,7 +764,7 @@ fn main() {
                                 std::mem::size_of_val(&h)
                             )
                         };
-                        println!("hBOB len: {:?}", h_u8.len());
+                        // println!("hBOB len: {:?}", h_u8.len());
                         prepare_buff_to_send_msg(
                             &mut buff,
                             &BASE64_STANDARD.encode(&our_auth_data),
@@ -815,9 +773,9 @@ fn main() {
                             &BASE64_STANDARD.encode(&ct)
                         );
                         client.write_all(&buff).expect("Writing to socket failed");
-                        println!("[dbg] End encrypting message B =====================");
+                        // println!("[dbg] End encrypting message B =====================");
                     } else {
-                        println!("NOT ALICE NOR BOB ====================");
+                        // println!("NOT ALICE NOR BOB ====================");
                         println!("[ERROR] SESSION IS NOT ESTABLISHED");
                         prepare_buff_to_send_msg(
                             &mut buff,
