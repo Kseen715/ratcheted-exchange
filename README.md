@@ -9,7 +9,7 @@
 > [!WARNING]
 > This implementation may not be secure. Use it only for educational purposes.
 
-This is a simple implementation of client-server communication using the ratcheted exchange protocol. Both the client and the server are implemented in pure Rust.
+This is a simple implementation of client-server communication using the ratcheted exchange protocol. Both the client and the server are implemented in pure Rust. You can find my Double Rachet algorithm implementation in [this repo](https://github.com/Kseen715/double-ratchet).
 
 The server simply sends a message from one client to another. The server does not know the content of the message. The server only knows the ID of the sender and the receiver.
 
